@@ -1,0 +1,8 @@
+.user-cell { display: flex; align-items: center; gap: 12px; }
+.avatar-placeholder { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+.provider-avatar { background-color: #ecfdf5; color: #10b981; }
+.service-tag { background-color: #f3f4f6; color: var(--text-dark); padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.rating-cell { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+.kyc-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.kyc-verified { background-color: #ecfdf5; color: #10b981; }
+.kyc-pending { background-color: #fffbeb; color: #f59e0b; }

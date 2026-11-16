@@ -1,0 +1,7 @@
+.roles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+.role-card { padding: 24px; }
+.role-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.role-icon { padding: 12px; background: #eff6ff; border-radius: 10px; }
+.role-header h3 { font-size: 18px; font-weight: 700; color: var(--text-dark); }
+.role-desc { font-size: 14px; color: var(--text-gray); line-height: 1.5; }
+.text-blue { color: #3b82f6; }
