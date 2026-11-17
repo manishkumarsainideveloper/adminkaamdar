@@ -17,6 +17,25 @@ import './Dashboard.css';
 const API_URL =
   'http://192.168.1.26:4000/api/v1/admin/dashboard/summary';
 
+const BOOKING_STATS_API =
+  'http://192.168.1.26:4000/api/v1/admin/dashboard/booking-stats';
+
+// Format a date in the browser's local timezone as YYYY-MM-DD.
+const toLocalDateParam = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatChartDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(`${dateString}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? dateString
+    : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+
 // Format numbers
 const formatNumber = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -53,6 +72,12 @@ const Dashboard = () => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Booking overview API states
+  const [bookingStats, setBookingStats] = useState(null);
+  const [bookingStatsLoading, setBookingStatsLoading] = useState(true);
+  const [bookingStatsError, setBookingStatsError] = useState('');
+  const [bookingRange, setBookingRange] = useState('30');
 
   // ==================================
   // FETCH DASHBOARD SUMMARY API
@@ -121,6 +146,82 @@ const Dashboard = () => {
       controller.abort();
     };
   }, []);
+
+  // ==================================
+  // FETCH BOOKING STATISTICS API
+  // ==================================
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchBookingStats = async () => {
+      try {
+        setBookingStatsLoading(true);
+        setBookingStatsError('');
+
+        const accessToken = localStorage.getItem('accessToken');
+
+        if (!accessToken) {
+          throw new Error('Access token not found. Please login again.');
+        }
+
+        const toDate = new Date();
+        toDate.setHours(0, 0, 0, 0);
+
+        const fromDate = new Date(toDate);
+        fromDate.setDate(fromDate.getDate() - (Number(bookingRange) - 1));
+
+        const from = toLocalDateParam(fromDate);
+        const to = toLocalDateParam(toDate);
+        const url = `${BOOKING_STATS_API}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          signal: controller.signal
+        });
+
+        const result = await response.json();
+        console.log('BOOKING STATS RESPONSE:', result);
+
+        if (!response.ok || result.success !== true) {
+          throw new Error(result.message || 'Unable to fetch booking statistics.');
+        }
+
+        if (!result.data || !Array.isArray(result.data.chart)) {
+          throw new Error('Booking statistics chart data is missing.');
+        }
+
+        setBookingStats(result.data);
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.error('Booking Stats API Error:', err);
+        setBookingStatsError(
+          err.message || 'Something went wrong while fetching booking statistics.'
+        );
+        setBookingStats(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setBookingStatsLoading(false);
+        }
+      }
+    };
+
+    fetchBookingStats();
+
+    return () => controller.abort();
+  }, [bookingRange]);
+
+  // Convert API chart response into the keys used by Recharts.
+  const bookingChartData = (bookingStats?.chart || []).map((item) => ({
+    name: formatChartDate(item.period),
+    bookings: Number(item.total) || 0,
+    completed: Number(item.completed) || 0,
+    cancelled: Number(item.cancelled) || 0
+  }));
 
   // ==================================
   // DYNAMIC KPI DATA
@@ -192,16 +293,6 @@ const Dashboard = () => {
     { name: 'Rakesh Kumar', bookings: 342, rating: 4.8, revenue: '₹85,420' },
     { name: 'Amit Sharma', bookings: 298, rating: 4.7, revenue: '₹72,300' },
     { name: 'Sunil Yadav', bookings: 276, rating: 4.6, revenue: '₹68,950' }
-  ];
-
-  const lineData = [
-    { name: '1 Oct', bookings: 200, completed: 120, cancelled: 20 },
-    { name: '5 Oct', bookings: 350, completed: 200, cancelled: 30 },
-    { name: '10 Oct', bookings: 280, completed: 180, cancelled: 25 },
-    { name: '15 Oct', bookings: 450, completed: 300, cancelled: 40 },
-    { name: '20 Oct', bookings: 380, completed: 250, cancelled: 35 },
-    { name: '25 Oct', bookings: 500, completed: 350, cancelled: 45 },
-    { name: '30 Oct', bookings: 420, completed: 280, cancelled: 30 }
   ];
 
   const barData = [
@@ -305,60 +396,85 @@ const Dashboard = () => {
         <div className="card chart-card">
           <div className="card-header">
             <h2>Bookings Overview</h2>
-            <select>
-              <option>Last 30 Days</option>
+            <select
+              value={bookingRange}
+              onChange={(event) => setBookingRange(event.target.value)}
+              aria-label="Select booking date range"
+            >
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="90">Last 90 Days</option>
             </select>
           </div>
 
           <div className="chart-container">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lineData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#e5e7eb"
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <RechartsTooltip
-                  contentStyle={{
-                    borderRadius: '8px',
-                    border: 'none'
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="bookings"
-                  stroke="#3b82f6"
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="completed"
-                  stroke="#10b981"
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="cancelled"
-                  stroke="#ef4444"
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {bookingStatsLoading ? (
+              <div className="chart-message">Loading booking statistics...</div>
+            ) : bookingStatsError ? (
+              <div className="chart-message chart-error" role="alert">
+                {bookingStatsError}
+              </div>
+            ) : bookingChartData.length === 0 ? (
+              <div className="chart-message">No booking data available for this period.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={bookingChartData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e5e7eb"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    dy={10}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    allowDecimals={false}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: 'none'
+                    }}
+                    labelStyle={{ color: '#172b4d', fontWeight: 600 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bookings"
+                    name="Total Bookings"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="completed"
+                    name="Completed"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="cancelled"
+                    name="Cancelled"
+                    stroke="#ef4444"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
