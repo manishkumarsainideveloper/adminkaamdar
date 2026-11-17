@@ -1,0 +1,3 @@
+.cell-with-icon { display: flex; align-items: center; gap: 8px; }
+.text-blue { color: #3b82f6; }
+.text-gray { color: #6b7280; }
